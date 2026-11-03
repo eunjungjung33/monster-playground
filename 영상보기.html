@@ -6,7 +6,7 @@
 <title>영상 보기 — 몬스터 놀이터</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Fredoka:wght@500;700&display=swap">
 <style>
-/* A free-viewing page: no stars, but 15 minutes a day (parents can grant more). The same album frame as the treasure chest; pick at random or from the list below. */
+/* A free-viewing page: no stars and no time limit. The same album frame as the treasure chest; pick at random or from the list below. */
 :root{
   --bg:#fff7e0; --fg:#3b2a1a; --card:#ffffff; --muted:#8a6f52; --line:#e9d9b8;
   --accent:#ff7a3d; --accent2:#4fb3ff; --good:#4cc26e; --bad:#ff5c7a; --star:#ffc93c;
@@ -24,18 +24,7 @@ button:focus-visible,input:focus-visible{outline:4px solid var(--accent2);outlin
 h1{margin:0;font-weight:400;font-size:clamp(1.6rem,5vw,2.4rem);text-wrap:balance;text-align:center}
 .top{display:flex;align-items:center;gap:12px;width:100%;flex-wrap:wrap}
 .top a{margin-left:auto;color:var(--muted);text-decoration:none;font-size:1.1rem;background:var(--card);padding:8px 16px;border-radius:999px;box-shadow:0 3px 0 var(--line)}
-.tclock{display:flex;align-items:center;gap:6px;background:var(--card);padding:8px 16px;border-radius:999px;box-shadow:0 3px 0 var(--line);
   font-family:var(--en);font-size:1.3rem;font-variant-numeric:tabular-nums;color:var(--accent)}
-.tclock b{font-weight:700}
-.tclock.low{color:var(--bad);animation:blink 1s steps(2) infinite}
-@keyframes blink{50%{opacity:.45}}
-@media (prefers-reduced-motion:reduce){.tclock.low{animation:none}}
-.parent{color:var(--muted);font-size:1rem;display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;max-width:720px}
-.parent details{width:100%;background:var(--card);border-radius:16px;padding:10px 14px;box-shadow:0 3px 0 var(--line)}
-.parent summary{cursor:pointer}
-.parent .gate{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:8px}
-.parent input{font:inherit;font-size:1rem;padding:8px 12px;border-radius:12px;border:2px solid var(--line);max-width:100%}
-.parent .st{font-size:.95rem}
 .ghost{background:transparent;color:var(--muted);font-size:1.1rem;padding:8px 14px;border-radius:12px}
 .ghost:active{background:#f3e5c8}
 .msg{font-size:1.3rem;min-height:1.6em;text-align:center}
@@ -66,7 +55,7 @@ h1{margin:0;font-weight:400;font-size:clamp(1.6rem,5vw,2.4rem);text-wrap:balance
 </head>
 <body>
 <div class="screen">
-  <div class="top"><h1>🎬 영상 보기</h1><a href="monster game.html">🏠 놀이터로</a><div class="tclock" id="tclock" title="남은 영상 시간">⏰ <b>15:00</b></div></div>
+  <div class="top"><h1>🎬 영상 보기</h1><a href="monster game.html">🏠 놀이터로</a></div>
   <div class="msg" id="vmsg">보고 싶은 영상을 고르거나 🎲 버튼을 눌러요!</div>
   <div class="frame"><div class="inner" id="inner"><div class="empty">영상을 찾는 중…</div></div></div>
   <div class="rowbtn"><button class="big" id="random">🎲 랜덤 영상</button><button class="big blue" id="next" hidden>⏭ 다음 영상</button></div>
@@ -75,9 +64,6 @@ h1{margin:0;font-weight:400;font-size:clamp(1.6rem,5vw,2.4rem);text-wrap:balance
     <div class="grid" id="grid"></div>
     <div class="hint">한 편이 끝나면 다음 영상이 랜덤으로 이어져요. 폴더에 영상을 넣었으면 '영상목록 갱신.bat'을 눌러 주세요.</div>
   </div>
-  <div class="parent"><details><summary>👨‍👩‍👧 부모님 설정</summary>
-    <div class="gate" id="gate">잠금 풀기: <span id="gq"></span> = <input id="ga" inputmode="numeric" style="width:70px" aria-label="정답"><button class="ghost" id="gok">확인</button></div>
-    <div id="ptools" hidden></div></details></div>
 </div>
 <script src="videos.js"></script>
 <script src="songs.js"></script>
@@ -103,35 +89,11 @@ function loadYT(){ if(FILE_OPEN)return Promise.resolve(false); if(ytLoad)return 
 
 const inner=document.getElementById('inner'), vmsg=document.getElementById('vmsg'), grid=document.getElementById('grid'), q=document.getElementById('q'), count=document.getElementById('count');
 let player=null, vEl=null, ytOK=false, last=null, fails=0, all=[];
-/* 15 minutes a day: the window starts the first time the page is opened that day and keeps running across reloads */
-const FREE_MINUTES=15;
-function today(){ const d=new Date(); return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}` }
-let F={day:'',until:0}; try{ F={...F,...JSON.parse(localStorage.getItem('mp_free')||'{}')} }catch(e){}
-function saveF(){ try{ localStorage.setItem('mp_free',JSON.stringify(F)) }catch(e){} }
-if(F.day!==today()){ F={day:today(),until:Date.now()+FREE_MINUTES*60000}; saveF() }
-function timeLeft(){ return Math.max(0,(+F.until||0)-Date.now()) }
-function fmtLeft(ms){ const t=Math.ceil(ms/1000); return `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}` }
-let ended=false;
-const tclock=document.getElementById('tclock');
-function timeUp(){ if(ended)return; ended=true; stopPlayback();
-  inner.innerHTML=`<div class="empty">⏰ 오늘 ${FREE_MINUTES}분 영상 시간이 끝났어요!<br><small>내일 다시 볼 수 있어요. 놀이터에서 별을 모으면 보물 상자도 열려요.</small></div>`;
-  vmsg.textContent='오늘은 여기까지! 내일 또 봐요 👋'; document.getElementById('random').hidden=true; document.getElementById('next').hidden=true; document.querySelector('.list').hidden=true; }
-setInterval(()=>{ const l=timeLeft(); tclock.querySelector('b').textContent=fmtLeft(l); tclock.classList.toggle('low',l<60000); if(l<=0)timeUp() },500);
-// parent gate: a small sum a 7-year-old is unlikely to pass casually
-const qa=6+Math.floor(Math.random()*7), qb=7+Math.floor(Math.random()*6); document.getElementById('gq').textContent=`${qa} + ${qb}`;
-document.getElementById('gok').onclick=()=>{ if(parseInt(document.getElementById('ga').value,10)!==qa+qb)return;
-  document.getElementById('gate').hidden=true; const pt=document.getElementById('ptools'); pt.hidden=false;
-  pt.innerHTML=`<p class="st">이 페이지는 하루에 <b>${FREE_MINUTES}분</b>만 볼 수 있어요. 남은 시간은 오른쪽 위에 분:초로 나와요. (보물 상자는 별 ${QUEST_GOAL_TXT}개마다 ${FREE_MINUTES}분이 따로 열려요.)</p>
-    <div class="gate"><button class="ghost" id="pMore">${FREE_MINUTES}분 다시 주기</button><button class="ghost" id="pEnd">지금 끝내기</button></div>`;
-  pt.querySelector('#pMore').onclick=()=>{ F={day:today(),until:Date.now()+FREE_MINUTES*60000}; saveF(); location.reload() };
-  pt.querySelector('#pEnd').onclick=()=>{ F.until=0; saveF(); timeUp() }; };
-const QUEST_GOAL_TXT=20;
 function stopPlayback(){ try{ if(player&&player.destroy)player.destroy() }catch(e){} player=null; try{ if(vEl){ vEl.pause(); vEl.removeAttribute('src'); vEl.load() } }catch(e){} vEl=null; }
 function pickRandom(){ if(!all.length)return null; let c=all; if(all.length>1&&last){ const f=all.filter(v=>v.key!==last); if(f.length)c=f } return c[Math.floor(Math.random()*c.length)] }
 function playOverlay(auto){ return auto?'':`<div class="play" id="playO"><button id="playB" aria-label="재생">▶</button></div>` }
 function onFail(){ fails++; if(fails>=4){ inner.innerHTML=`<div class="empty">영상을 열 수 없어요.<br><small>인터넷 연결과 폴더의 영상 파일을 확인해 주세요.</small></div>`; return } show(pickRandom(),true) }
 function show(pick,auto){
-  if(ended||timeLeft()<=0){ timeUp(); return }
   stopPlayback();
   if(!pick){ inner.innerHTML=`<div class="empty">아직 영상이 없어요<br><small>인터넷이 연결되어 있는지, 폴더에 영상 파일이 있는지 확인해 주세요.</small></div>`; return }
   last=pick.key; document.getElementById('next').hidden=false;
@@ -171,7 +133,6 @@ q.oninput=drawList;
   ytOK=await loadYT();
   all=[...videoPool(),...((ytOK||FILE_OPEN)?songPool():[])];
   drawList();
-  if(timeLeft()<=0){ timeUp(); return }
   if(!ytOK&&!FILE_OPEN&&!videoPool().length){ inner.innerHTML=`<div class="empty">인터넷이 연결되어 있지 않아요<br><small>연결한 뒤 다시 열어 주세요.</small></div>`; return }
   if(!ytOK)vmsg.textContent=FILE_OPEN?FILE_MSG:'지금은 인터넷이 안 돼서 폴더 영상만 볼 수 있어요.';
   show(pickRandom(),false);
